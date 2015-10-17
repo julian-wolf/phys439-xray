@@ -1,8 +1,7 @@
 #! /usr/bin/python
 
 import spinmob as sm
-import numpy as np
-import sys
+import numpy   as np
 
 data_paths_Cu = ["data/Cu_" + str(percent) + ".UXD" for percent in np.arange(0,125,25)];
 data_paths_Pb = ["data/Pb_" + str(percent) + ".UXD" for percent in np.arange(0,125,25)];
@@ -20,20 +19,34 @@ def _lorentzian(x, gamma):
     distribution = 1 / (x**2 + gamma**2);
     return norm_factor * distribution
 
-def pseudo_voigt(x, x0, sigma, gamma, norm, eta):
+def pseudo_voigt(x, x0, sigma, gamma, norm, eta, bg):
     """
     pseudo-voigt function for fitting data:
     y = norm * (eta * L(x-x0;gamma) + (1 - eta) * G(x-x0;sigma))
     """
     G = _gaussian(x - x0, sigma);
     L = _lorentzian(x - x0, gamma);
-    return norm * (eta * L + (1 - eta) * G)
+    return norm * (eta * L + (1 - eta) * G) + bg
 
-def fit_peak(dataset, x0_expected):
-    parameters = "x0=%d, sigma=1, gamma=1, norm=1, eta=0.5" % (x0_expected,);
+def get_yerr(dataset):
+    """
+    Gets the statistical uncertainty in the number of counts per bin.
+    """
+    bg_data = dataset.c(1)[0:200];
+    return np.std(bg_data)
+
+def fit_peak(dataset, x0_expected, xmin=0, xmax=2019):
+    """
+    Fits a pseudo-voigt function to a single peak of dataset lying
+    between xmin and xmax, with expected location x0_expected.
+    """
+    parameters = "x0=%d, sigma=1, gamma=1, norm=1, eta=0.5, bg=10" % (x0_expected,);
     voigt_fit  = sm.data.fitter(f=pseudo_voigt, p=parameters);
 
-    voigt_fit.set_data(dataset, eydata=1, exdata=0.1);
+    yerr = get_yerr(dataset);
+
+    voigt_fit.set_data(xdata=dataset.c(0), ydata=dataset.c(1), eydata=yerr);
+    voigt_fit.set(xmin=xmin, xmax=xmax);
     voigt_fit.fit();
 
     return voigt_fit
