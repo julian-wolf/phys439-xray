@@ -1,5 +1,3 @@
-#! /usr/bin/python
-
 import spinmob as sm
 import numpy   as np
 
@@ -19,41 +17,81 @@ def _lorentzian(x, gamma):
     distribution = 1 / (x**2 + gamma**2);
     return norm_factor * distribution
 
-def gaussian(x, sigma, norm, bg, x0):
+def gaussian(x, bg, sigma, norm, x0):
     """
     Gaussian function for fitting data:
     y = norm * G(x-x0;sigma) + bg
     """
     return norm * _gaussian(x-x0, sigma) + bg
 
-def multiple_gaussian(x, sigma, norm, bg, **kwargs):
+def _multiple_gaussian(x, bg, sigma, norm, x0):
     """
     Gaussian with multiple peaks for fitting data:
     y = sum(norm[i] * G(x-x0[i];sigma[i])) + bg
     """
+    n_peaks = len(x0);
+    assert(len(sigma) == n_peaks and len(norm) == n_peaks);
+
     distribution = bg;
-    for _ , x0 in kwargs.iteritems():
-        distribution += norm * _gaussian(x-x0, sigma);
+    for i in range(n_peaks):
+        distribution += norm[i] * _gaussian(x-x0[i], sigma[i]);
     return distribution
 
-def lorentzian(x, gamma, norm, bg, x0):
+def gaussian2(x, bg, s0, s1, n0, n1, x0, x1):
+    return _multiple_gaussian(x, bg, [s0, s1],
+                                     [n0, n1],
+                                     [x0, x1])
+def gaussian3(x, bg, s0, s1, s2, n0, n1, n2, x0, x1, x2):
+    return _multiple_gaussian(x, bg, [s0, s1, s2],
+                                     [n0, n1, n2],
+                                     [x0, x1, x2])
+def gaussian4(x, bg, s0, s1, s2, s3, n0, n1, n2, n3, x0, x1, x2, x3):
+    return _multiple_gaussian(x, bg, [s0, s1, s2, s3],
+                                     [n0, n1, n2, n3],
+                                     [x0, x1, x2, x3])
+def gaussian5(x, bg, s0, s1, s2, s3, s4, n0, n1, n2, n3, n4, x0, x1, x2, x3, x4):
+    return _multiple_gaussian(x, bg, [s0, s1, s2, s3, s4],
+                                     [n0, n1, n2, n3, n4],
+                                     [x0, x1, x2, x3, x4])
+
+def lorentzian(x, bg, gamma, norm, x0):
     """
     Lorentzian function for fitting data:
     y = norm * L(x-x0;gamma) + bg
     """
     return norm * _lorentzian(x-x0, gamma) + bg
 
-def multiple_lorentzian(x, gamma, norm, bg, **kwargs):
+def _multiple_lorentzian(x, bg, gamma, norm, **kwargs):
     """
     Lorentzian with multiple peaks for fitting data:
     y = sum(norm[i] * L(x-x0[i];gamma[i])) + bg
     """
+    n_peaks = len(x0);
+    assert(len(gamma) == n_peaks and len(norm) == n_peaks);
+
     distribution = bg;
-    for _ , x0 in kwargs.iteritems():
-        distribution += norm * _lorentzian(x-x0, gamma);
+    for i in range(n_peaks):
+        distribution += norm[i] * _gaussian(x-x0[i], gamma[i]);
     return distribution
 
-def pseudo_voigt(x, sigma, gamma, norm, eta, bg, x0):
+def lorentzian2(x, bg, g0, g1, n0, n1, x0, x1):
+    return _multiple_lorentzian(x, bg, [g0, g1],
+                                       [n0, n1],
+                                       [x0, x1])
+def lorentzian3(x, bg, g0, g1, g2, n0, n1, n2, x0, x1, x2):
+    return _multiple_lorentzian(x, bg, [g0, g1, g2],
+                                       [n0, n1, n2],
+                                       [x0, x1, x2])
+def lorentzian4(x, bg, g0, g1, g2, g3, n0, n1, n2, n3, x0, x1, x2, x3):
+    return _multiple_lorentzian(x, bg, [g0, g1, g2, g3],
+                                       [n0, n1, n2, n3],
+                                       [x0, x1, x2, x3])
+def lorentzian5(x, bg, g0, g1, g2, g3, g4, n0, n1, n2, n3, n4, x0, x1, x2, x3, x4):
+    return _multiple_lorentzian(x, bg, [g0, g1, g2, g3, g4],
+                                       [n0, n1, n2, n3, n4],
+                                       [x0, x1, x2, x3, x4])
+
+def pseudo_voigt(x, bg, sigma, gamma, norm, eta, x0):
     """
     pseudo-Voigt function for fitting data:
     y = norm * (eta*L(x-x0;gamma) + (1-eta)*G(x-x0;sigma))
@@ -62,7 +100,7 @@ def pseudo_voigt(x, sigma, gamma, norm, eta, bg, x0):
     L = _lorentzian(x-x0, gamma);
     return norm * (eta * L + (1 - eta) * G) + bg
 
-def multiple_pseudo_voigt(x, sigma, gamma, norm, eta, bg, **kwargs):
+def multiple_pseudo_voigt(x, bg, sigma, gamma, norm, eta, **kwargs):
     """
     pseudo-Voigt with multiple peaks for fitting data:
     y = sum(norm[i] * (eta[i]*L(x-x0[i];gamma[i]) + (1-eta[i])*G(x-x0[i];sigma[i]))
@@ -73,7 +111,7 @@ def multiple_pseudo_voigt(x, sigma, gamma, norm, eta, bg, **kwargs):
         G = _gaussian(  x-x0, sigma[i]);
         L = _lorentzian(x-x0, gamma[i]);
         distribution += norm * (eta * L + (1-eta) * G);
-    return distribution
+    return distribution # TODO: broken
 
 def get_yerr(dataset):
     """
