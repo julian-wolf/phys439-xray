@@ -1,8 +1,11 @@
 import spinmob as sm
 import numpy   as np
+import matplotlib.pyplot as plt
 
-data_paths_Cu = ["data/Cu_" + str(percent) + ".UXD" for percent in np.arange(0,125,25)];
-data_paths_Pb = ["data/Pb_" + str(percent) + ".UXD" for percent in np.arange(0,125,25)];
+data_paths_Cu = ["data/Cu_" + str(percent) + ".UXD"
+                 for percent in np.arange(0, 125, 25)];
+data_paths_Pb = ["data/Pb_" + str(percent) + ".UXD"
+                 for percent in np.arange(0, 125, 25)];
 
 data_Cu = sm.data.load_multiple(paths=data_paths_Cu);
 data_Pb = sm.data.load_multiple(paths=data_paths_Pb);
@@ -24,36 +27,6 @@ def gaussian(x, bg, sigma, norm, x0):
     """
     return norm * _gaussian(x-x0, sigma) + bg
 
-def _multiple_gaussian(x, bg, sigma, norm, x0):
-    """
-    Gaussian with multiple peaks for fitting data:
-    y = sum(norm[i] * G(x-x0[i];sigma[i])) + bg
-    """
-    n_peaks = len(x0);
-    assert(len(sigma) == n_peaks and len(norm) == n_peaks);
-
-    distribution = bg;
-    for i in range(n_peaks):
-        distribution += norm[i] * _gaussian(x-x0[i], sigma[i]);
-    return distribution
-
-def gaussian2(x, bg, s0, s1, n0, n1, x0, x1):
-    return _multiple_gaussian(x, bg, [s0, s1],
-                                     [n0, n1],
-                                     [x0, x1])
-def gaussian3(x, bg, s0, s1, s2, n0, n1, n2, x0, x1, x2):
-    return _multiple_gaussian(x, bg, [s0, s1, s2],
-                                     [n0, n1, n2],
-                                     [x0, x1, x2])
-def gaussian4(x, bg, s0, s1, s2, s3, n0, n1, n2, n3, x0, x1, x2, x3):
-    return _multiple_gaussian(x, bg, [s0, s1, s2, s3],
-                                     [n0, n1, n2, n3],
-                                     [x0, x1, x2, x3])
-def gaussian5(x, bg, s0, s1, s2, s3, s4, n0, n1, n2, n3, n4, x0, x1, x2, x3, x4):
-    return _multiple_gaussian(x, bg, [s0, s1, s2, s3, s4],
-                                     [n0, n1, n2, n3, n4],
-                                     [x0, x1, x2, x3, x4])
-
 def lorentzian(x, bg, gamma, norm, x0):
     """
     Lorentzian function for fitting data:
@@ -61,57 +34,14 @@ def lorentzian(x, bg, gamma, norm, x0):
     """
     return norm * _lorentzian(x-x0, gamma) + bg
 
-def _multiple_lorentzian(x, bg, gamma, norm, **kwargs):
-    """
-    Lorentzian with multiple peaks for fitting data:
-    y = sum(norm[i] * L(x-x0[i];gamma[i])) + bg
-    """
-    n_peaks = len(x0);
-    assert(len(gamma) == n_peaks and len(norm) == n_peaks);
-
-    distribution = bg;
-    for i in range(n_peaks):
-        distribution += norm[i] * _gaussian(x-x0[i], gamma[i]);
-    return distribution
-
-def lorentzian2(x, bg, g0, g1, n0, n1, x0, x1):
-    return _multiple_lorentzian(x, bg, [g0, g1],
-                                       [n0, n1],
-                                       [x0, x1])
-def lorentzian3(x, bg, g0, g1, g2, n0, n1, n2, x0, x1, x2):
-    return _multiple_lorentzian(x, bg, [g0, g1, g2],
-                                       [n0, n1, n2],
-                                       [x0, x1, x2])
-def lorentzian4(x, bg, g0, g1, g2, g3, n0, n1, n2, n3, x0, x1, x2, x3):
-    return _multiple_lorentzian(x, bg, [g0, g1, g2, g3],
-                                       [n0, n1, n2, n3],
-                                       [x0, x1, x2, x3])
-def lorentzian5(x, bg, g0, g1, g2, g3, g4, n0, n1, n2, n3, n4, x0, x1, x2, x3, x4):
-    return _multiple_lorentzian(x, bg, [g0, g1, g2, g3, g4],
-                                       [n0, n1, n2, n3, n4],
-                                       [x0, x1, x2, x3, x4])
-
 def pseudo_voigt(x, bg, sigma, gamma, norm, eta, x0):
     """
     pseudo-Voigt function for fitting data:
     y = norm * (eta*L(x-x0;gamma) + (1-eta)*G(x-x0;sigma))
     """
-    G = _gaussian(  x-x0, sigma);
+    G =   _gaussian(x-x0, sigma);
     L = _lorentzian(x-x0, gamma);
     return norm * (eta * L + (1 - eta) * G) + bg
-
-def multiple_pseudo_voigt(x, bg, sigma, gamma, norm, eta, **kwargs):
-    """
-    pseudo-Voigt with multiple peaks for fitting data:
-    y = sum(norm[i] * (eta[i]*L(x-x0[i];gamma[i]) + (1-eta[i])*G(x-x0[i];sigma[i]))
-    """
-    n_peaks = len(x0);
-    distribution = bg;
-    for _ , x0 in kwargs.iteritems():
-        G = _gaussian(  x-x0, sigma[i]);
-        L = _lorentzian(x-x0, gamma[i]);
-        distribution += norm * (eta * L + (1-eta) * G);
-    return distribution # TODO: broken
 
 def get_yerr(dataset):
     """
@@ -122,12 +52,12 @@ def get_yerr(dataset):
     bg_data = dataset.c(1)[0:200];
     return np.std(bg_data)
 
-def fit_peak(dataset, func, parameters, xmin=10, xmax=110):
+def fit_peak(dataset, f, p, xmin=10, xmax=110):
     """
     Fits a function func to a single peak of dataset lying
     between xmin and xmax, with expected location x0_expected.
     """
-    peak_fit = sm.data.fitter(f=func, p=parameters);
+    peak_fit = sm.data.fitter(f=f, p=p);
     yerr     = get_yerr(dataset);
 
     peak_fit.set_data(xdata=dataset.c(0), ydata=dataset.c(1), eydata=yerr);
@@ -135,3 +65,45 @@ def fit_peak(dataset, func, parameters, xmin=10, xmax=110):
     peak_fit.fit();
 
     return peak_fit
+
+def analyze(datasets=data_Cu, fit_range=[40, 48], f="a*x+b", p="a,b"):
+    """
+    Automates analysis
+    """
+    x0 = (fit_range[1] + fit_range[0]) / 2;
+    parameters = "bg=20,sigma=0.1,gamma=0.1,norm=500,eta=0.5,x0=%d" % x0;
+
+    primary_element_percentages = np.arange(0, 125, 25);
+    peak_2theta = np.zeros(len(datasets));
+    peak_error  = np.zeros(len(datasets));
+    good_fits   = [True] * len(datasets);
+    for i in range(len(datasets)):
+        first_peak_fit = fit_peak(datasets[i], pseudo_voigt, parameters,
+                                  fit_range[0], fit_range[1]);
+
+        if first_peak_fit.results[1] is None:
+            good_fits[i] = False;
+            continue;
+
+        x0    = first_peak_fit.results[0][5];
+        eta   = first_peak_fit.results[0][4];
+        sigma = first_peak_fit.results[0][1];
+        gamma = first_peak_fit.results[0][2];
+
+        peak_2theta[i] = x0;
+        peak_error[i]  = np.abs(eta * gamma) + np.abs((1-eta) * sigma);
+
+    good_fits = np.array(good_fits, dtype=bool);
+
+    primary_element_percentages = primary_element_percentages[good_fits];
+    peak_2theta = peak_2theta[good_fits];
+    peak_error  = peak_error[ good_fits];
+
+    peak_offset_fit = sm.data.fitter(f=f, p=p);
+
+    peak_offset_fit.set_data(xdata=primary_element_percentages,
+                             ydata=peak_2theta,
+                             eydata=peak_error);
+    peak_offset_fit.fit();
+
+    return peak_offset_fit;
