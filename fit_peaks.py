@@ -1,6 +1,6 @@
 import spinmob as sm
 import numpy   as np
-import matplotlib.pyplot as plt
+from scipy.optimize import minimize_scalar
 
 data_paths_Cu = ["data/Cu_" + str(percent) + ".UXD"
                  for percent in np.arange(0, 125, 25)];
@@ -57,7 +57,7 @@ def fit_peak(dataset, f, p, xmin=10, xmax=110):
     Fits a function func to a single peak of dataset lying
     between xmin and xmax, with expected location x0_expected.
     """
-    peak_fit = sm.data.fitter(f=f, p=p);
+    peak_fit = sm.data.fitter(f=f, p=p, plot_guess=False);
     yerr     = get_yerr(dataset);
 
     peak_fit.set_data(xdata=dataset.c(0), ydata=dataset.c(1), eydata=yerr);
@@ -66,7 +66,8 @@ def fit_peak(dataset, f, p, xmin=10, xmax=110):
 
     return peak_fit
 
-def analyze(datasets=data_Cu, fit_range=[40, 48], f="a*x+b", p="a,b"):
+def analyze(datasets=data_Cu, fit_range=[40, 48],
+            f="a*x+b", p="a,b", fudge_errors=False):
     """
     Automates analysis
     """
@@ -91,7 +92,7 @@ def analyze(datasets=data_Cu, fit_range=[40, 48], f="a*x+b", p="a,b"):
         gamma = first_peak_fit.results[0][2];
 
         peak_2theta[i] = x0;
-        peak_error[i]  = (np.abs(eta * gamma) + np.abs((1-eta) * sigma)) / 30;
+        peak_error[i]  = (np.abs(eta * gamma) + np.abs((1-eta) * sigma));
 
     good_fits = np.array(good_fits, dtype=bool);
 
@@ -107,14 +108,21 @@ def analyze(datasets=data_Cu, fit_range=[40, 48], f="a*x+b", p="a,b"):
                (4 * np.abs(np.cos(np.radians(peak_error / 2)) / \
                            np.sin(np.radians(peak_error / 2))**2));
 
-    peak_offset_fit = sm.data.fitter(f=f, p=p);
+    def minimize_chi2(error_norm_factor):
+        peak_offset_fit = sm.data.fitter(f=f, p=p, autoplot=False);
+        peak_offset_fit.set_data(xdata=primary_element_percentages,
+                                 ydata=peak_A,
+                                 eydata=error_norm_factor*error_A);
+        peak_offset_fit.fit();
+        return (peak_offset_fit.reduced_chi_squareds()[0] - 2)**2
 
+    error_norm_factor = minimize_scalar(minimize_chi2).x;
+    error_A *= error_norm_factor;
+
+    peak_offset_fit = sm.data.fitter(f=f, p=p, plot_guess=False);
     peak_offset_fit.set_data(xdata=primary_element_percentages,
                              ydata=peak_A,
-                             eydata=peak_error);
+                             eydata=error_A);
     peak_offset_fit.fit();
-
-    plt.xlabel("$\\mathrm{nominal\ percent\ copper}$");
-    plt.ylabel("$\\mathrm{lattice\ constant\ } a \\mathrm{\ (\\AA)}$");
 
     return peak_offset_fit;
