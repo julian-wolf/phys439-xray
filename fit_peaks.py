@@ -107,17 +107,19 @@ def analyze(datasets=data_Cu, fit_range=[40, 48],
     error_A = wavelength * np.sqrt(3) / \
                (4 * np.abs(np.cos(np.radians(peak_error / 2)) / \
                            np.sin(np.radians(peak_error / 2))**2));
+    if fudge_errors:
+        def minimize_chi2(error_norm_factor):
+            peak_offset_fit = sm.data.fitter(f=f, p=p, autoplot=False);
+            peak_offset_fit.set_data(xdata=primary_element_percentages,
+                                     ydata=peak_A,
+                                     eydata=error_norm_factor*error_A);
+            peak_offset_fit.fit();
+            return (peak_offset_fit.reduced_chi_squareds()[0] - 2)**2
 
-    def minimize_chi2(error_norm_factor):
-        peak_offset_fit = sm.data.fitter(f=f, p=p, autoplot=False);
-        peak_offset_fit.set_data(xdata=primary_element_percentages,
-                                 ydata=peak_A,
-                                 eydata=error_norm_factor*error_A);
-        peak_offset_fit.fit();
-        return (peak_offset_fit.reduced_chi_squareds()[0] - 2)**2
-
-    error_norm_factor = minimize_scalar(minimize_chi2).x;
-    error_A *= error_norm_factor;
+        error_norm_factor = minimize_scalar(minimize_chi2).x;
+        error_A *= error_norm_factor;
+    else:
+        error_A /= 2;
 
     peak_offset_fit = sm.data.fitter(f=f, p=p, plot_guess=False);
     peak_offset_fit.set_data(xdata=primary_element_percentages,
