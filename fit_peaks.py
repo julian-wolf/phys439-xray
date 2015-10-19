@@ -91,7 +91,7 @@ def analyze(datasets=data_Cu, fit_range=[40, 48], f="a*x+b", p="a,b"):
         gamma = first_peak_fit.results[0][2];
 
         peak_2theta[i] = x0;
-        peak_error[i]  = np.abs(eta * gamma) + np.abs((1-eta) * sigma);
+        peak_error[i]  = (np.abs(eta * gamma) + np.abs((1-eta) * sigma)) / 30;
 
     good_fits = np.array(good_fits, dtype=bool);
 
@@ -99,11 +99,22 @@ def analyze(datasets=data_Cu, fit_range=[40, 48], f="a*x+b", p="a,b"):
     peak_2theta = peak_2theta[good_fits];
     peak_error  = peak_error[ good_fits];
 
+    wavelength = 1.5406; # in angstroms
+
+    peak_A  = wavelength * np.sqrt(3) / \
+              (2 * np.sin(np.radians(peak_2theta / 2)));
+    error_A = wavelength * np.sqrt(3) / \
+               (4 * np.abs(np.cos(np.radians(peak_error / 2)) / \
+                           np.sin(np.radians(peak_error / 2))**2));
+
     peak_offset_fit = sm.data.fitter(f=f, p=p);
 
     peak_offset_fit.set_data(xdata=primary_element_percentages,
-                             ydata=peak_2theta,
+                             ydata=peak_A,
                              eydata=peak_error);
     peak_offset_fit.fit();
+
+    plt.xlabel("$\\mathrm{nominal\ percent\ copper}$");
+    plt.ylabel("$\\mathrm{lattice\ constant\ } a \\mathrm{\ (\\AA)}$");
 
     return peak_offset_fit;
