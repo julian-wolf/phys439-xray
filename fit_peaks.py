@@ -27,19 +27,6 @@ def gaussian(x, bg, sigma, norm, x0):
     """
     return norm * _gaussian(x-x0, sigma) + bg
 
-def multiple_gaussian(x, bg, sigma, norm, x0):
-    """
-    multi-peak Gaussian function for fitting data:
-    y = sum(norm[i] * G(x-x0[i];sigma[i])) + bg
-    """
-    n_peaks = len(x0)
-
-
-    distribution = bg
-    for i in range(n_peaks):
-        distribution += norm[i] * _gaussian(x-x0[i], sigma[i])
-    return distribution
-
 def lorentzian(x, bg, gamma, norm, x0):
     """
     Lorentzian function for fitting data:
@@ -83,39 +70,42 @@ def fit_peak(dataset, f, p, xmin=10, xmax=110):
 
     return peak_fit
 
-def analyze(datasets=data_Cu, fit_range=[40, 48],
-            f="a*x+b", p="a,b", fudge_errors=False):
+def analyze(d='Cu', f="a*x+b", p="a,b", fudge_errors=False):
     """
     Automates analysis
     """
-    x0 = (fit_range[1] + fit_range[0]) / 2
-    parameters = "bg=20,sigma=0.1,gamma=0.1,norm=1000,eta=0.5,x0=%d" % x0
-    # parameters = "bg=20,gamma=0.1,norm=500,x0=%d" % x0
+    datasets = {'Cu' : data_Cu,      'Pb' : data_Pb}
+    x0       = {'Cu' : [44] * 5,     'Pb' : [32.1, 31.5, 31.4]}
+    xmins    = {'Cu' : [40] * 5,     'Pb' : [26,   26,   26]}
+    xmaxs    = {'Cu' : [48] * 5,     'Pb' : [35,   35,   35]}
+    fit_func = {'Cu' : pseudo_voigt, 'Pb' : gaussian}
+
+    datasets = datasets[d]
+    x0       = x0[d]
+    xmins    = xmins[d]
+    xmaxs    = xmaxs[d]
+    fit_func = fit_func[d]
+
+    parameters_base = {'Cu' : "bg=20,sigma=0.1,gamma=0.1,norm=1000,eta=0.5,x0=",
+                       'Pb' : "bg=3,sigma=0.01,norm=1000,x0="}
+    parameters_base = parameters_base[d]
 
     primary_element_percentages = np.arange(0, 125, 25)
     peak_2theta = np.zeros(len(datasets))
     peak_error  = np.zeros(len(datasets))
     good_fits   = [True] * len(datasets)
     for i in range(len(datasets)):
-        first_peak_fit = fit_peak(datasets[i], pseudo_voigt, parameters,
-                                  fit_range[0], fit_range[1])
-        # first_peak_fit = fit_peak(datasets[i], lorentzian, parameters,
-        #                           fit_range[0], fit_range[1])
+        parameters = parameters_base + str(x0[i])
+        first_peak_fit = fit_peak(datasets[i], fit_func, parameters,
+                                  xmins[i], xmaxs[i])
 
         if first_peak_fit.results[1] is None:
             good_fits[i] = False
             continue
 
-        x0    = first_peak_fit.results[0][5]
-        eta   = first_peak_fit.results[0][4]
-        sigma = first_peak_fit.results[0][1]
-        gamma = first_peak_fit.results[0][2]
-        # x0    = first_peak_fit.results[0][3]
-        # gamma = first_peak_fit.results[0][1]
-
-        peak_2theta[i] = x0
-        peak_error[i]  = (np.abs(eta * gamma) + np.abs((1-eta) * sigma))
-        # peak_error[i]  = gamma
+        peak_2theta[i] = first_peak_fit.results[0][5]
+        peak_error[i]  = first_peak_fit.results[1][5][5]
+        peak_error[i]  = np.sqrt(peak_error[i])
 
     good_fits = np.array(good_fits, dtype=bool)
 
