@@ -135,12 +135,12 @@ def analyze_CuNi(f="a*x+b", p="a,b", fudge_errors=False):
 
     return peak_offset_fit
 
-def analyze_PbSn(f="a*x+b", p="a=0,b=4.8"):
+def analyze_PbSn():
     """
     Automates PbSn analysis
     """
-    # datasets = data_Pb
-    datasets = data_Pb[:3] + data_Pb[4:]
+    datasets = data_Pb # switch out
+    # datasets = data_Pb[:3] + data_Pb[4:] # switch in
 
     xmin = 26
     xmax = 35
@@ -148,19 +148,22 @@ def analyze_PbSn(f="a*x+b", p="a=0,b=4.8"):
     x0 = [[30.7,       32.1],
           [30.7, 31.4, 32.1],
           [30.7, 31.4, 32.2],
-          # [30.8, 31.4, 32.2],
+          # [30.8, 31.4, 32.2], # switch in
+          [      31.4], # switch out
           [      31.5]]
 
     n0 = [[100,       100],
           [100, 1000, 100],
           [100, 1000, 100],
-          # [10,  100,  100],
+          # [10,  100,  100], # switch in
+          [     1000], # switch out
           [     1000]]
 
     s0 = [[0.01,       0.01],
           [0.01, 0.01, 0.01],
           [0.1,  0.01, 0.1],
-          # [0.05, 0.02, 0.2],
+          # [0.05, 0.02, 0.2], # switch in
+          [      0.02], # switch out
           [      0.01]]
 
     fit_func   = [""] * len(x0)
@@ -179,64 +182,69 @@ def analyze_PbSn(f="a*x+b", p="a=0,b=4.8"):
     # Pb_ind  = [4, 4, 4, 1]
     # Sn1_ind = [2, 2, 2, 2]
     # Sn2_ind = [4, 7, 7, 7]
-    Pb_ind  = [4, 4, 1]
+    Pb_ind  = [4, 4, 1, 1] # switch out
+    # Pb_ind  = [4, 4, 1] # switch in
     Sn1_ind = [1, 1, 1]
     Sn2_ind = [4, 7, 7]
 
     primary_element_percentages = np.arange(0, 125, 25)
     peak_2theta_Pb  = np.zeros(len(datasets)-1)
-    peak_2theta_Sn1 = np.zeros(len(datasets)-1)
-    peak_2theta_Sn2 = np.zeros(len(datasets)-1)
+    peak_2theta_Sn1 = np.zeros(len(datasets)-2)
+    peak_2theta_Sn2 = np.zeros(len(datasets)-2)
     peak_error_Pb   = np.zeros(len(datasets)-1)
-    peak_error_Sn1  = np.zeros(len(datasets)-1)
-    peak_error_Sn2  = np.zeros(len(datasets)-1)
+    peak_error_Sn1  = np.zeros(len(datasets)-2)
+    peak_error_Sn2  = np.zeros(len(datasets)-2)
     good_fits = [True] * len(datasets)
     for i in range(len(datasets)):
-        first_peak_fit = fit_peak(datasets[i], fit_func[i], parameters[i],
-                                  xmin, xmax, {'G' : _gaussian})
+        if i != 3:
+            first_peak_fit = fit_peak(datasets[i], fit_func[i], parameters[i],
+                                      xmin, xmax, {'G' : _gaussian})
+        else:
+            first_peak_fit = fit_peak(datasets[i], fit_func[i], parameters[i],
+                                      30, 33, {'G' : _gaussian})
 
         if first_peak_fit.results[1] is None:
             good_fits[i] = False
             continue
-
-        aux_fits.append(first_peak_fit)
 
         if i != 0:
             peak_2theta_Pb[i-1]  = first_peak_fit.results[0][Pb_ind[i-1]]
             peak_error_Pb[i-1]   = first_peak_fit.results[1][Pb_ind[i-1]][Pb_ind[i-1]]
             peak_error_Pb[i-1]   = np.sqrt(peak_error_Pb[i-1])
 
-        if i != len(datasets)-1:
-            peak_2theta_Sn1[i-1] = first_peak_fit.results[0][Sn1_ind[i]]
-            peak_error_Sn1[i-1]  = first_peak_fit.results[1][Sn1_ind[i]][Sn1_ind[i]]
-            peak_error_Sn1[i-1]  = np.sqrt(peak_error_Sn1[i])
+        if i < len(datasets)-2:
+            peak_2theta_Sn1[i] = first_peak_fit.results[0][Sn1_ind[i]]
+            peak_error_Sn1[i]  = first_peak_fit.results[1][Sn1_ind[i]][Sn1_ind[i]]
+            peak_error_Sn1[i]  = np.sqrt(peak_error_Sn1[i])
 
-            peak_2theta_Sn2[i-1] = first_peak_fit.results[0][Sn2_ind[i]]
-            peak_error_Sn2[i-1]  = first_peak_fit.results[1][Sn2_ind[i]][Sn2_ind[i]]
-            peak_error_Sn2[i-1]  = np.sqrt(peak_error_Sn2[i])
+            peak_2theta_Sn2[i] = first_peak_fit.results[0][Sn2_ind[i]]
+            peak_error_Sn2[i]  = first_peak_fit.results[1][Sn2_ind[i]][Sn2_ind[i]]
+            peak_error_Sn2[i]  = np.sqrt(peak_error_Sn2[i])
 
     good_fits = np.array(good_fits, dtype=bool)
 
     primary_element_percentages = primary_element_percentages[good_fits]
     peak_2theta_Pb  = peak_2theta_Pb[ good_fits[1:]]
     peak_error_Pb   = peak_error_Pb[  good_fits[1:]]
-    peak_2theta_Sn1 = peak_2theta_Sn1[good_fits[:-1]]
-    peak_error_Sn1  = peak_error_Sn1[ good_fits[:-1]]
-    peak_2theta_Sn2 = peak_2theta_Sn2[good_fits[:-1]]
-    peak_error_Sn2  = peak_error_Sn2[ good_fits[:-1]]
+    peak_2theta_Sn1 = peak_2theta_Sn1[good_fits[:-2]]
+    peak_error_Sn1  = peak_error_Sn1[ good_fits[:-2]]
+    peak_2theta_Sn2 = peak_2theta_Sn2[good_fits[:-2]]
+    peak_error_Sn2  = peak_error_Sn2[ good_fits[:-2]]
 
-    # 25 and 50 were mislabeled! who the hell knows why
-    primary_element_percentages[1:3] = primary_element_percentages[2:0:-1]
+    # # 25 and 50 were mislabeled! who the hell knows why
+    # primary_element_percentages[1:3] = primary_element_percentages[2:0:-1]
+
+    f="a*x+b"
 
     peak_offset_fit_Pb  = _propogate_error_and_fit(peak_2theta_Pb, peak_error_Pb,
                                                    primary_element_percentages[1:],
-                                                   f, "a=0,b=4.9", False)
+                                                   f, "a=8.82e-5,b=5.032", False)
     peak_offset_fit_Sn1 = _propogate_error_and_fit(peak_2theta_Sn1, peak_error_Sn1,
-                                                   primary_element_percentages[:-1],
+                                                   primary_element_percentages[:-2],
                                                    f, "a=4.8e-5,b=5.0", False)
     peak_offset_fit_Sn2 = _propogate_error_and_fit(peak_2theta_Sn2, peak_error_Sn2,
-                                                   primary_element_percentages[:-1],
-                                                   f, "a=-6.8e-5,b=4.8", False)
+                                                   primary_element_percentages[:-2],
+                                                   f, "a=-6.82e-5,b=4.824", False)
 
     return (peak_offset_fit_Sn1, peak_offset_fit_Pb, peak_offset_fit_Sn2)
 
