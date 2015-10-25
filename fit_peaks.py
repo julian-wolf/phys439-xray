@@ -169,7 +169,7 @@ def analyze_PbSn(f="a*x+b", p="a=0,b=4.8"):
         fit_func[i]   = ""
         parameters[i] = ""
         for j in range(len(x0[i])):
-            fit_func[i]   += "n" + str(j) + "*G(x-x" + str(j) + ",s" + str(j) + ")+"
+            fit_func[i]   +=  "n" + str(j) + "*G(x-x" + str(j) + ",s" + str(j) + ")+"
             parameters[i] +=  "n" + str(j) + "=" + str(n0[i][j]) + \
                              ",x" + str(j) + "=" + str(x0[i][j]) + \
                              ",s" + str(j) + "=" + str(s0[i][j]) + ","
@@ -182,8 +182,6 @@ def analyze_PbSn(f="a*x+b", p="a=0,b=4.8"):
     Pb_ind  = [4, 4, 1]
     Sn1_ind = [1, 1, 1]
     Sn2_ind = [4, 7, 7]
-
-    aux_fits = [] # TODO: delete this and related
 
     primary_element_percentages = np.arange(0, 125, 25)
     peak_2theta_Pb  = np.zeros(len(datasets)-1)
@@ -240,7 +238,7 @@ def analyze_PbSn(f="a*x+b", p="a=0,b=4.8"):
                                                    primary_element_percentages[:-1],
                                                    f, "a=-6.8e-5,b=4.8", False)
 
-    return (peak_offset_fit_Sn1, peak_offset_fit_Pb, peak_offset_fit_Sn2, aux_fits)
+    return (peak_offset_fit_Sn1, peak_offset_fit_Pb, peak_offset_fit_Sn2)
 
 def print_data_to_columns(sm_fit, fname, residuals=False):
     xmin = sm_fit._settings['xmin']
