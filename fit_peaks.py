@@ -203,11 +203,11 @@ def analyze_PbSn(f="a*x+b", p="a,b"):
         if i != len(datasets)-1:
             peak_2theta_Sn1[i-1] = first_peak_fit.results[0][Sn1_ind[i]]
             peak_error_Sn1[i-1]  = first_peak_fit.results[1][Sn1_ind[i]][Sn1_ind[i]]
-            peak_error_Sn1[i-1]  = np.sqrt(peak_error_Sn1[i-1])
+            peak_error_Sn1[i-1]  = np.sqrt(peak_error_Sn1[i])
 
             peak_2theta_Sn2[i-1] = first_peak_fit.results[0][Sn2_ind[i]]
             peak_error_Sn2[i-1]  = first_peak_fit.results[1][Sn2_ind[i]][Sn2_ind[i]]
-            peak_error_Sn2[i-1]  = np.sqrt(peak_error_Sn2[i-1])
+            peak_error_Sn2[i-1]  = np.sqrt(peak_error_Sn2[i])
 
     good_fits = np.array(good_fits, dtype=bool)
 
@@ -257,8 +257,7 @@ def analyze_PbSn(f="a*x+b", p="a,b"):
                                 eydata=error_A_Sn2)
     peak_offset_fit_Sn2.fit()
 
-    return (peak_offset_fit_Pb, peak_offset_fit_Sn1, peak_offset_fit_Sn2)
-
+    return (peak_offset_fit_Sn1, peak_offset_fit_Pb, peak_offset_fit_Sn2)
 
 def print_data_to_columns(sm_fit, fname, residuals=False):
     xmin = sm_fit._settings['xmin']
