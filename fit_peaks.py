@@ -56,12 +56,12 @@ def get_yerr(dataset):
 
     return bg_std * np.sqrt(dataset.c(1) / bg_mean)
 
-def fit_peak(dataset, f, p, xmin=10, xmax=110):
+def fit_peak(dataset, f, p, xmin=10, xmax=110, g=None):
     """
     Fits a function func to a single peak of dataset lying
     between xmin and xmax, with expected location x0_expected.
     """
-    peak_fit = sm.data.fitter(f=f, p=p, plot_guess=True)
+    peak_fit = sm.data.fitter(f=f, p=p, g=g, plot_guess=True)
     yerr     = get_yerr(dataset)
 
     peak_fit.set_data(xdata=dataset.c(0), ydata=dataset.c(1), eydata=yerr)
@@ -70,34 +70,23 @@ def fit_peak(dataset, f, p, xmin=10, xmax=110):
 
     return peak_fit
 
-def analyze(d='Cu', f="a*x+b", p="a,b", fudge_errors=False):
+def analyze_CuNi(f="a*x+b", p="a,b", fudge_errors=False):
     """
-    Automates analysis
+    Automates CuNi analysis
     """
-    datasets = {'Cu' : data_Cu,      'Pb' : data_Pb}
-    x0       = {'Cu' : [44] * 5,     'Pb' : [32.1, 31.5, 31.4]}
-    xmins    = {'Cu' : [40] * 5,     'Pb' : [26,   26,   26]}
-    xmaxs    = {'Cu' : [48] * 5,     'Pb' : [35,   35,   35]}
-    fit_func = {'Cu' : pseudo_voigt, 'Pb' : gaussian}
+    datasets = data_Cu
+    xmin     = 40
+    xmax     = 48
+    fit_func = pseudo_voigt
 
-    datasets = datasets[d]
-    x0       = x0[d]
-    xmins    = xmins[d]
-    xmaxs    = xmaxs[d]
-    fit_func = fit_func[d]
-
-    parameters_base = {'Cu' : "bg=20,sigma=0.1,gamma=0.1,norm=1000,eta=0.5,x0=",
-                       'Pb' : "bg=3,sigma=0.01,norm=1000,x0="}
-    parameters_base = parameters_base[d]
+    parameters = "bg=20,sigma=0.1,gamma=0.1,norm=1000,eta=0.5,x0=44"
 
     primary_element_percentages = np.arange(0, 125, 25)
     peak_2theta = np.zeros(len(datasets))
     peak_error  = np.zeros(len(datasets))
     good_fits   = [True] * len(datasets)
     for i in range(len(datasets)):
-        parameters = parameters_base + str(x0[i])
-        first_peak_fit = fit_peak(datasets[i], fit_func, parameters,
-                                  xmins[i], xmaxs[i])
+        first_peak_fit = fit_peak(datasets[i], fit_func, parameters, xmin, xmax)
 
         if first_peak_fit.results[1] is None:
             good_fits[i] = False
@@ -141,6 +130,135 @@ def analyze(d='Cu', f="a*x+b", p="a,b", fudge_errors=False):
     peak_offset_fit.fit()
 
     return peak_offset_fit
+
+def analyze_PbSn(f="a*x+b", p="a,b"):
+    """
+    Automates PbSn analysis
+    """
+    # datasets = data_Pb
+    datasets = data_Pb[:3] + data_Pb[4:]
+
+    xmin = 26
+    xmax = 35
+
+    x0 = [[30.7,       32.1],
+          [30.7, 31.4, 32.1],
+          [30.7, 31.4, 32.2],
+          # [30.8, 31.4, 32.2],
+          [      31.5]]
+
+    n0 = [[100,       100],
+          [100, 1000, 100],
+          [100, 1000, 100],
+          # [10,  100,  100],
+          [     1000]]
+
+    s0 = [[0.01,       0.01],
+          [0.01, 0.01, 0.01],
+          [0.1,  0.01, 0.1],
+          # [0.05, 0.02, 0.2],
+          [      0.01]]
+
+    fit_func   = [""] * len(x0)
+    parameters = [""] * len(x0)
+    for i in range(len(x0)):
+        fit_func[i]   = ""
+        parameters[i] = ""
+        for j in range(len(x0[i])):
+            fit_func[i]   += "n" + str(j) + "*G(x-x" + str(j) + ",s" + str(j) + ")+"
+            parameters[i] += "n"  + str(j) + "=" + str(n0[i][j]) + \
+                             ",x" + str(j) + "=" + str(x0[i][j]) + \
+                             ",s" + str(j) + "=" + str(s0[i][j]) + ","
+        fit_func[i]   += "bg"
+        parameters[i] += "bg=3"
+
+    # Pb_ind  = [4, 4, 4, 1]
+    # Sn1_ind = [2, 2, 2, 2]
+    # Sn2_ind = [4, 7, 7, 7]
+    Pb_ind  = [4, 4, 1]
+    Sn1_ind = [1, 1, 1]
+    Sn2_ind = [4, 7, 7]
+
+    primary_element_percentages = np.arange(0, 125, 25)
+    peak_2theta_Pb  = np.zeros(len(datasets)-1)
+    peak_2theta_Sn1 = np.zeros(len(datasets)-1)
+    peak_2theta_Sn2 = np.zeros(len(datasets)-1)
+    peak_error_Pb   = np.zeros(len(datasets)-1)
+    peak_error_Sn1  = np.zeros(len(datasets)-1)
+    peak_error_Sn2  = np.zeros(len(datasets)-1)
+    good_fits = [True] * len(datasets)
+    for i in range(len(datasets)):
+        first_peak_fit = fit_peak(datasets[i], fit_func[i], parameters[i],
+                                  xmin, xmax, {'G' : _gaussian})
+
+        if first_peak_fit.results[1] is None:
+            good_fits[i] = False
+            continue
+
+        if i != 1:
+            peak_2theta_Pb[i-1] = first_peak_fit.results[0][Pb_ind[i-1]]
+            peak_error_Pb[i-1]  = first_peak_fit.results[1][Pb_ind[i-1]][Pb_ind[i-1]]
+            peak_error_Pb[i-1]  = np.sqrt(peak_error_Pb[i-1])
+
+        if i != len(datasets)-1:
+            peak_2theta_Sn1[i-1] = first_peak_fit.results[0][Sn1_ind[i]]
+            peak_error_Sn1[i-1]  = first_peak_fit.results[1][Sn1_ind[i]][Sn1_ind[i]]
+            peak_error_Sn1[i-1]  = np.sqrt(peak_error_Sn1[i-1])
+
+            peak_2theta_Sn2[i-1] = first_peak_fit.results[0][Sn2_ind[i]]
+            peak_error_Sn2[i-1]  = first_peak_fit.results[1][Sn2_ind[i]][Sn2_ind[i]]
+            peak_error_Sn2[i-1]  = np.sqrt(peak_error_Sn2[i-1])
+
+    good_fits = np.array(good_fits, dtype=bool)
+
+    primary_element_percentages = primary_element_percentages[good_fits]
+    peak_2theta_Pb  = peak_2theta_Pb[ good_fits[1:]]
+    peak_error_Pb   = peak_error_Pb[  good_fits[1:]]
+    peak_2theta_Sn1 = peak_2theta_Sn1[good_fits[:-1]]
+    peak_error_Sn1  = peak_error_Sn1[ good_fits[:-1]]
+    peak_2theta_Sn2 = peak_2theta_Sn2[good_fits[:-1]]
+    peak_error_Sn2  = peak_error_Sn2[ good_fits[:-1]]
+
+    wavelength = 1.5406; # in angstroms
+
+    peak_A_Pb  = wavelength * np.sqrt(3) / \
+                 (2 * np.sin(np.radians(peak_2theta_Pb / 2)))
+    error_A_Pb = wavelength * np.sqrt(3) / \
+                 (4 * np.abs(np.cos(np.radians(peak_error_Pb / 2)) / \
+                             np.sin(np.radians(peak_error_Pb / 2))**2))
+
+    peak_A_Sn1  = wavelength * np.sqrt(3) / \
+                 (2 * np.sin(np.radians(peak_2theta_Sn1 / 2)))
+    error_A_Sn1 = wavelength * np.sqrt(3) / \
+                 (4 * np.abs(np.cos(np.radians(peak_error_Sn1 / 2)) / \
+                             np.sin(np.radians(peak_error_Sn1 / 2))**2))
+
+    peak_A_Sn2  = wavelength * np.sqrt(3) / \
+                 (2 * np.sin(np.radians(peak_2theta_Sn2 / 2)))
+    error_A_Sn2 = wavelength * np.sqrt(3) / \
+                 (4 * np.abs(np.cos(np.radians(peak_error_Sn2 / 2)) / \
+                             np.sin(np.radians(peak_error_Sn2 / 2))**2))
+
+    peak_offset_fit_Pb = sm.data.fitter(f=f, p=p, plot_guess=False)
+    peak_offset_fit_Pb.set_data(xdata=primary_element_percentages[1:],
+                                ydata=peak_A_Pb,
+                                eydata=error_A_Pb)
+    peak_offset_fit_Pb.fit()
+
+    peak_offset_fit_Sn1 = sm.data.fitter(f=f, p=p, plot_guess=False)
+    peak_offset_fit_Sn1.set_data(xdata=primary_element_percentages[:-1],
+                                ydata=peak_A_Sn1,
+                                eydata=error_A_Sn1)
+    peak_offset_fit_Sn1.fit()
+
+    peak_offset_fit_Sn2 = sm.data.fitter(f=f, p=p, plot_guess=False)
+    peak_offset_fit_Sn2.set_data(xdata=primary_element_percentages[:-1],
+                                ydata=peak_A_Sn2,
+                                eydata=error_A_Sn2)
+    peak_offset_fit_Sn2.fit()
+
+    return (peak_offset_fit_Pb, peak_offset_fit_Sn1, peak_offset_fit_Sn2)
+
 
 def print_data_to_columns(sm_fit, fname, residuals=False):
     xmin = sm_fit._settings['xmin']
