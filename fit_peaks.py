@@ -10,6 +10,8 @@ data_paths_Pb = ["data/Pb_" + str(percent) + ".UXD"
 data_Cu = sm.data.load_multiple(paths=data_paths_Cu)
 data_Pb = sm.data.load_multiple(paths=data_paths_Pb)
 
+wavelength = 1.5406; # in angstroms
+
 def _gaussian(x, sigma):
     norm_factor  = 1 / (sigma * np.sqrt(2 * np.pi))
     distribution = np.exp(-x**2 / (2 * sigma**2))
@@ -70,6 +72,31 @@ def fit_peak(dataset, f, p, xmin=10, xmax=110, g=None):
 
     return peak_fit
 
+def _propogate_error_and_fit(peaks, errors, x, f, p, fudge_errors):
+    peak_A  = wavelength * np.sqrt(3) / (2 * np.sin(np.radians(peaks / 2)))
+    error_A = wavelength * np.sqrt(3) / (4 * np.abs(np.cos(np.radians(errors / 2)) /
+                                                    np.sin(np.radians(errors / 2))**2))
+
+    if fudge_errors:
+        def minimize_chi2(error_norm_factor):
+            peak_offset_fit = sm.data.fitter(f=f, p=p, autoplot=False)
+            peak_offset_fit.set_data(xdata=x, ydata=peak_A,
+                                     eydata=error_norm_factor*error_A)
+            peak_offset_fit.fit()
+            return (peak_offset_fit.reduced_chi_squareds()[0] - 1)**2
+
+        error_norm_factor = minimize_scalar(minimize_chi2).x
+        error_A *= error_norm_factor
+
+        print "Multiplying errors by fudge factor %f" % error_norm_factor
+
+    peak_offset_fit = sm.data.fitter(f=f, p=p, plot_guess=False)
+    peak_offset_fit.set_data(xdata=x, ydata=peak_A,
+                             eydata=error_A)
+    peak_offset_fit.fit()
+
+    return peak_offset_fit
+
 def analyze_CuNi(f="a*x+b", p="a,b", fudge_errors=False):
     """
     Automates CuNi analysis
@@ -102,36 +129,13 @@ def analyze_CuNi(f="a*x+b", p="a,b", fudge_errors=False):
     peak_2theta = peak_2theta[good_fits]
     peak_error  = peak_error[ good_fits]
 
-    wavelength = 1.5406; # in angstroms
-
-    peak_A  = wavelength * np.sqrt(3) / \
-              (2 * np.sin(np.radians(peak_2theta / 2)))
-    error_A = wavelength * np.sqrt(3) / \
-               (4 * np.abs(np.cos(np.radians(peak_error / 2)) / \
-                           np.sin(np.radians(peak_error / 2))**2))
-    if fudge_errors:
-        def minimize_chi2(error_norm_factor):
-            peak_offset_fit = sm.data.fitter(f=f, p=p, autoplot=False)
-            peak_offset_fit.set_data(xdata=primary_element_percentages,
-                                     ydata=peak_A,
-                                     eydata=error_norm_factor*error_A)
-            peak_offset_fit.fit()
-            return (peak_offset_fit.reduced_chi_squareds()[0] - 1)**2
-
-        error_norm_factor = minimize_scalar(minimize_chi2).x
-        error_A *= error_norm_factor
-
-        print "Multiplying errors by fudge factor %f" % error_norm_factor
-
-    peak_offset_fit = sm.data.fitter(f=f, p=p, plot_guess=False)
-    peak_offset_fit.set_data(xdata=primary_element_percentages,
-                             ydata=peak_A,
-                             eydata=error_A)
-    peak_offset_fit.fit()
+    peak_offset_fit = _propogate_error_and_fit(peak_2theta, peak_error,
+                                               primary_element_percentages,
+                                               f, p, fudge_errors)
 
     return peak_offset_fit
 
-def analyze_PbSn(f="a*x+b", p="a,b"):
+def analyze_PbSn(f="a*x+b", p="a=0,b=4.8"):
     """
     Automates PbSn analysis
     """
@@ -166,7 +170,7 @@ def analyze_PbSn(f="a*x+b", p="a,b"):
         parameters[i] = ""
         for j in range(len(x0[i])):
             fit_func[i]   += "n" + str(j) + "*G(x-x" + str(j) + ",s" + str(j) + ")+"
-            parameters[i] += "n"  + str(j) + "=" + str(n0[i][j]) + \
+            parameters[i] +=  "n" + str(j) + "=" + str(n0[i][j]) + \
                              ",x" + str(j) + "=" + str(x0[i][j]) + \
                              ",s" + str(j) + "=" + str(s0[i][j]) + ","
         fit_func[i]   += "bg"
@@ -178,6 +182,8 @@ def analyze_PbSn(f="a*x+b", p="a,b"):
     Pb_ind  = [4, 4, 1]
     Sn1_ind = [1, 1, 1]
     Sn2_ind = [4, 7, 7]
+
+    aux_fits = [] # TODO: delete this and related
 
     primary_element_percentages = np.arange(0, 125, 25)
     peak_2theta_Pb  = np.zeros(len(datasets)-1)
@@ -195,10 +201,12 @@ def analyze_PbSn(f="a*x+b", p="a,b"):
             good_fits[i] = False
             continue
 
-        if i != 1:
-            peak_2theta_Pb[i-1] = first_peak_fit.results[0][Pb_ind[i-1]]
-            peak_error_Pb[i-1]  = first_peak_fit.results[1][Pb_ind[i-1]][Pb_ind[i-1]]
-            peak_error_Pb[i-1]  = np.sqrt(peak_error_Pb[i-1])
+        aux_fits.append(first_peak_fit)
+
+        if i != 0:
+            peak_2theta_Pb[i-1]  = first_peak_fit.results[0][Pb_ind[i-1]]
+            peak_error_Pb[i-1]   = first_peak_fit.results[1][Pb_ind[i-1]][Pb_ind[i-1]]
+            peak_error_Pb[i-1]   = np.sqrt(peak_error_Pb[i-1])
 
         if i != len(datasets)-1:
             peak_2theta_Sn1[i-1] = first_peak_fit.results[0][Sn1_ind[i]]
@@ -219,45 +227,20 @@ def analyze_PbSn(f="a*x+b", p="a,b"):
     peak_2theta_Sn2 = peak_2theta_Sn2[good_fits[:-1]]
     peak_error_Sn2  = peak_error_Sn2[ good_fits[:-1]]
 
-    wavelength = 1.5406; # in angstroms
+    # 25 and 50 were mislabeled! who the hell knows why
+    primary_element_percentages[1:3] = primary_element_percentages[2:0:-1]
 
-    peak_A_Pb  = wavelength * np.sqrt(3) / \
-                 (2 * np.sin(np.radians(peak_2theta_Pb / 2)))
-    error_A_Pb = wavelength * np.sqrt(3) / \
-                 (4 * np.abs(np.cos(np.radians(peak_error_Pb / 2)) / \
-                             np.sin(np.radians(peak_error_Pb / 2))**2))
+    peak_offset_fit_Pb  = _propogate_error_and_fit(peak_2theta_Pb, peak_error_Pb,
+                                                   primary_element_percentages[1:],
+                                                   f, "a=0,b=4.9", False)
+    peak_offset_fit_Sn1 = _propogate_error_and_fit(peak_2theta_Sn1, peak_error_Sn1,
+                                                   primary_element_percentages[:-1],
+                                                   f, "a=4.8e-5,b=5.0", False)
+    peak_offset_fit_Sn2 = _propogate_error_and_fit(peak_2theta_Sn2, peak_error_Sn2,
+                                                   primary_element_percentages[:-1],
+                                                   f, "a=-6.8e-5,b=4.8", False)
 
-    peak_A_Sn1  = wavelength * np.sqrt(3) / \
-                 (2 * np.sin(np.radians(peak_2theta_Sn1 / 2)))
-    error_A_Sn1 = wavelength * np.sqrt(3) / \
-                 (4 * np.abs(np.cos(np.radians(peak_error_Sn1 / 2)) / \
-                             np.sin(np.radians(peak_error_Sn1 / 2))**2))
-
-    peak_A_Sn2  = wavelength * np.sqrt(3) / \
-                 (2 * np.sin(np.radians(peak_2theta_Sn2 / 2)))
-    error_A_Sn2 = wavelength * np.sqrt(3) / \
-                 (4 * np.abs(np.cos(np.radians(peak_error_Sn2 / 2)) / \
-                             np.sin(np.radians(peak_error_Sn2 / 2))**2))
-
-    peak_offset_fit_Pb = sm.data.fitter(f=f, p=p, plot_guess=False)
-    peak_offset_fit_Pb.set_data(xdata=primary_element_percentages[1:],
-                                ydata=peak_A_Pb,
-                                eydata=error_A_Pb)
-    peak_offset_fit_Pb.fit()
-
-    peak_offset_fit_Sn1 = sm.data.fitter(f=f, p=p, plot_guess=False)
-    peak_offset_fit_Sn1.set_data(xdata=primary_element_percentages[:-1],
-                                ydata=peak_A_Sn1,
-                                eydata=error_A_Sn1)
-    peak_offset_fit_Sn1.fit()
-
-    peak_offset_fit_Sn2 = sm.data.fitter(f=f, p=p, plot_guess=False)
-    peak_offset_fit_Sn2.set_data(xdata=primary_element_percentages[:-1],
-                                ydata=peak_A_Sn2,
-                                eydata=error_A_Sn2)
-    peak_offset_fit_Sn2.fit()
-
-    return (peak_offset_fit_Sn1, peak_offset_fit_Pb, peak_offset_fit_Sn2)
+    return (peak_offset_fit_Sn1, peak_offset_fit_Pb, peak_offset_fit_Sn2, aux_fits)
 
 def print_data_to_columns(sm_fit, fname, residuals=False):
     xmin = sm_fit._settings['xmin']
@@ -267,15 +250,15 @@ def print_data_to_columns(sm_fit, fname, residuals=False):
     i_used = (xdata >= xmin) & (xdata <= xmax)
     xdata  = xdata[i_used]
 
-    n_data = len(xdata);
     if not residuals:
         ydata  = sm_fit.get_data()[1][0][i_used]
         eydata = sm_fit.get_data()[2][0][i_used]
     else:
         ydata  = sm_fit.studentized_residuals()[0]
-        eydata = sm_fit.get_data()[2][0][i_used] / sm_fit.get_data()[1][0][i_used]
+        eydata = (0 * ydata) + 1
 
     with open(fname, 'w') as f_out:
+        n_data = len(xdata);
         for i in range(n_data):
             print "n_data = %d\ti = %d\txdata[i] = %f\n" % (n_data, i, xdata[i])
             entry = "%f\t%f\t%f\n" % (xdata[i], ydata[i], eydata[i])
