@@ -10,6 +10,9 @@ data_paths_Pb = ["data/Pb_" + str(percent) + ".UXD"
 data_Cu = sm.data.load_multiple(paths=data_paths_Cu)
 data_Pb = sm.data.load_multiple(paths=data_paths_Pb)
 
+data_mystery1 = sm.data.load("data/Mystery_1.UXD")
+data_mystery2 = sm.data.load("data/Mystery_2.UXD")
+
 wavelength = 1.5406; # in angstroms
 
 def _gaussian(x, sigma):
@@ -47,16 +50,9 @@ def pseudo_voigt(x, bg, sigma, gamma, norm, eta, x0):
 
 def get_yerr(dataset):
     """
-    Gets the statistical uncertainty in the number of counts per bin.
-    Assumes no peaks in the range 10 deg < 2 theta < 20 deg
-    check to be sure this holds!
+    Gets the poisson error
     """
-    bg_data = dataset.c(1)[0:200]
-
-    bg_std  = np.std( bg_data)
-    bg_mean = np.mean(bg_data)
-
-    return bg_std * np.sqrt(dataset.c(1) / bg_mean)
+    return np.sqrt(dataset.c(1))
 
 def fit_peak(dataset, f, p, xmin=10, xmax=110, g=None):
     """
@@ -212,14 +208,32 @@ def analyze_PbSn():
             peak_error_Pb[i-1]   = first_peak_fit.results[1][Pb_ind[i-1]][Pb_ind[i-1]]
             peak_error_Pb[i-1]   = np.sqrt(peak_error_Pb[i-1])
 
+            # norm_fact = _gaussian(0, first_peak_fit.results[0][Pb_ind[i-1]+1])
+            # print (first_peak_fit.results[0][Pb_ind[i-1]-1] *
+            #         norm_fact + first_peak_fit.results[0][-1]) / 2
+            # print (first_peak_fit.results[1][Pb_ind[i-1]-1][Pb_ind[i-1]-1] *
+            #         norm_fact) / 2
+
         if i < len(datasets)-2:
             peak_2theta_Sn1[i] = first_peak_fit.results[0][Sn1_ind[i]]
             peak_error_Sn1[i]  = first_peak_fit.results[1][Sn1_ind[i]][Sn1_ind[i]]
             peak_error_Sn1[i]  = np.sqrt(peak_error_Sn1[i])
 
+            # norm_fact = _gaussian(0, first_peak_fit.results[0][Sn1_ind[i]+1])
+            # print (first_peak_fit.results[0][Sn1_ind[i]-1] *
+            #         norm_fact + first_peak_fit.results[0][-1]) / 2
+            # print (first_peak_fit.results[1][Sn1_ind[i]-1][Sn1_ind[i]-1] *
+            #         norm_fact) / 2
+
             peak_2theta_Sn2[i] = first_peak_fit.results[0][Sn2_ind[i]]
             peak_error_Sn2[i]  = first_peak_fit.results[1][Sn2_ind[i]][Sn2_ind[i]]
             peak_error_Sn2[i]  = np.sqrt(peak_error_Sn2[i])
+
+            # norm_fact = _gaussian(0, first_peak_fit.results[0][Sn2_ind[i]+1])
+            # print (first_peak_fit.results[0][Sn2_ind[i]-1] *
+            #         norm_fact + first_peak_fit.results[0][-1]) / 2
+            # print (first_peak_fit.results[1][Sn2_ind[i]-1][Sn2_ind[i]-1] *
+            #         norm_fact) / 2
 
     good_fits = np.array(good_fits, dtype=bool)
 
@@ -250,7 +264,7 @@ def analyze_PbSn():
 
 def print_data_to_columns(sm_fit, fname, residuals=False):
     xmin = sm_fit._settings['xmin']
-    xmax = sm_fit._settings['xmin']
+    xmax = sm_fit._settings['xmax']
 
     xdata  = sm_fit.get_data()[0][0]
     i_used = (xdata >= xmin) & (xdata <= xmax)
@@ -266,7 +280,6 @@ def print_data_to_columns(sm_fit, fname, residuals=False):
     with open(fname, 'w') as f_out:
         n_data = len(xdata);
         for i in range(n_data):
-            print "n_data = %d\ti = %d\txdata[i] = %f\n" % (n_data, i, xdata[i])
             entry = "%f\t%f\t%f\n" % (xdata[i], ydata[i], eydata[i])
             f_out.write(entry)
 
