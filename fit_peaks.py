@@ -125,6 +125,10 @@ def analyze_CuNi(f="a*x+b", p="a,b", fudge_errors=False):
     peak_2theta = peak_2theta[good_fits]
     peak_error  = peak_error[ good_fits]
 
+    # use error based on sample angle, not based on fit uncertainty (much larger)
+    peak_2theta -= np.array([9.143, 7.061, 9.173, 11.91, 7.752])[good_fits] * 0.001
+    peak_error   = np.array([0.4,   0.6,   0.7,   0.6,   0.5  ])[good_fits]
+
     peak_offset_fit = _propogate_error_and_fit(peak_2theta, peak_error,
                                                primary_element_percentages,
                                                f, p, fudge_errors)
